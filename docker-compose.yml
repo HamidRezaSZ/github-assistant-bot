@@ -1,0 +1,11 @@
+services:
+  github-bot:
+    build: .
+    container_name: github-bot
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./tokens.db:/app/tokens.db
+    restart: unless-stopped

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-SQLITE_DB_PATH = 'tokens.sqlite3'
+SQLITE_DB_PATH = 'tokens.db'
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')

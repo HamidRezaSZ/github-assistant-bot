@@ -7,5 +7,5 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./tokens.sqlite3:/app/tokens.sqlite3
+      - ./tokens.db:/app/tokens.db
     restart: unless-stopped

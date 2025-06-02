@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-SQLITE_DB_PATH = 'tokens.db'
+SQLITE_DB_PATH = 'tokens.sqlite3'
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
@@ -298,7 +298,7 @@ def main():
         app.router.add_get('/callback', oauth_callback)
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, OAUTH_CALLBACK_DOMAIN, 8080)
+        site = web.TCPSite(runner, 'localhost', 8080)
         await site.start()
         print(f'OAuth callback server running on {OAUTH_CALLBACK_URL}')
 

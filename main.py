@@ -298,7 +298,7 @@ def main():
         app.router.add_get('/callback', oauth_callback)
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, 'localhost', 8080)
+        site = web.TCPSite(runner, '0.0.0.0', 8080)
         await site.start()
         print(f'OAuth callback server running on {OAUTH_CALLBACK_URL}')
 

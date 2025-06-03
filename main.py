@@ -266,9 +266,19 @@ def main():
 
     application.add_handler(conversation_handler)
 
+    async def support_page(request):
+        with open("pages/support.html", "r") as f:
+            return web.Response(text=f.read(), content_type="text/html")
+
+    async def privacy_page(request):
+        with open("pages/privacy.html", "r") as f:
+            return web.Response(text=f.read(), content_type="text/html")
+
     async def start_web_app():
         app = web.Application()
         app.router.add_get('/callback', oauth_callback)
+        app.router.add_get('/support', support_page)
+        app.router.add_get('/privacy', privacy_page)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', 8080)

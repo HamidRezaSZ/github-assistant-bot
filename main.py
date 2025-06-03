@@ -278,7 +278,7 @@ def main():
         app = web.Application()
         app.router.add_get('/callback', oauth_callback)
         app.router.add_get('/support', support_page)
-        app.router.add_get('/privacy', privacy_page)
+        app.router.add_get('/privacy-policy', privacy_page)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', 8080)

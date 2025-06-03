@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import sqlite3
@@ -18,6 +19,8 @@ from telegram.ext import (
     filters,
 )
 
+from utils.webhooks import verify_signature
+
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -27,7 +30,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
 OAUTH_CALLBACK_DOMAIN = os.getenv('OAUTH_CALLBACK_DOMAIN')
-
+GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET')
 OAUTH_CALLBACK_URL = f'https://{OAUTH_CALLBACK_DOMAIN}/callback'
 
 
@@ -274,11 +277,27 @@ def main():
         with open("pages/privacy.html", "r") as f:
             return web.Response(text=f.read(), content_type="text/html")
 
+    async def github_webhook(request):
+        signature = request.headers.get('X-Hub-Signature-256')
+        body = await request.read()
+        validation_message, status = verify_signature(
+            body, GITHUB_WEBHOOK_SECRET, signature
+        )
+        if status != 200:
+            logger.error(f"Webhook signature verification failed: {validation_message}")
+            return web.Response(text=validation_message, status=status)
+
+        payload = json.loads(body.decode())
+        # TODO: Handle the payload as needed
+        logger.info(f"Received GitHub webhook: {payload.get('action')}")
+        return web.Response(text='Webhook received', status=200)
+
     async def start_web_app():
         app = web.Application()
         app.router.add_get('/callback', oauth_callback)
         app.router.add_get('/support', support_page)
         app.router.add_get('/privacy-policy', privacy_page)
+        app.router.add_post('/webhook', github_webhook)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', 8080)

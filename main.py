@@ -212,7 +212,7 @@ async def login(update: Update, context: CallbackContext):
     params = {
         'client_id': GITHUB_CLIENT_ID,
         'redirect_uri': OAUTH_CALLBACK_URL,
-        'scope': 'repo read:org',
+        'scope': 'repo',
         'state': str(telegram_id),
         'allow_signup': 'true',
     }

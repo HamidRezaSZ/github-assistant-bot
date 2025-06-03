@@ -67,14 +67,6 @@ def get_token(telegram_id):
     return row[0] if row else None
 
 
-def delete_token(telegram_id):
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    c = conn.cursor()
-    c.execute('DELETE FROM user_tokens WHERE telegram_id = ?', (str(telegram_id),))
-    conn.commit()
-    conn.close()
-
-
 SELECT_ACCOUNT, SELECT_PROJECT, GET_TITLE, GET_DESCRIPTION = range(4)
 
 
@@ -85,9 +77,6 @@ async def fetch_github_accounts(user_id=None):
     accounts = []
     async with aiohttp.ClientSession() as session:
         async with session.get('https://api.github.com/user', headers=headers) as resp:
-            if resp.status == 401:
-                delete_token(user_id)
-                return []
             if resp.status == 200:
                 user = await resp.json()
                 accounts.append({'type': 'user', 'login': user['login']})
@@ -95,9 +84,6 @@ async def fetch_github_accounts(user_id=None):
         async with session.get(
             'https://api.github.com/user/orgs', headers=headers
         ) as resp:
-            if resp.status == 401:
-                delete_token(user_id)
-                return []
             if resp.status == 200:
                 orgs = await resp.json()
                 for org in orgs:
@@ -120,9 +106,6 @@ async def fetch_github_repos(user_id=None, account=None):
         url = f'https://api.github.com/users/{account["login"]}/repos'
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
-            if response.status == 401:
-                delete_token(user_id)
-                return []
             if response.status == 200:
                 data = await response.json()
                 return [repo['name'] for repo in data]
@@ -207,22 +190,12 @@ async def get_description(update: Update, context: CallbackContext):
     headers = {'Authorization': f'token {token}'} if token else {}
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=issue_data, headers=headers) as response:
-            if response.status == 401:
-                delete_token(user_id)
-                await update.message.reply_text(
-                    'Your GitHub token is invalid or expired. Please /login again.'
-                )
-                return ConversationHandler.END
             if response.status == 201:
                 data = await response.json()
                 await update.message.reply_text(
                     f'Issue created successfully! View it here: {data["html_url"]}'
                 )
             else:
-                logger.error(f"Body: {issue_data}. headers: {headers}. url: {url}")
-                logger.error(
-                    f"Failed to create issue: {response.status} - {await response.text()}"
-                )
                 await update.message.reply_text(
                     'Failed to create issue. Please check your GitHub token and repository permissions.'
                 )
@@ -310,6 +283,6 @@ def main():
 if __name__ == '__main__':
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO,
+        level=logging.DEBUG,
     )
     main()

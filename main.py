@@ -135,7 +135,7 @@ async def start(update: Update, context: CallbackContext):
     accounts = await fetch_github_accounts(user_id)
     if not accounts:
         await update.message.reply_text(
-            'Failed to fetch organizations or user info from GitHub. Please check your token or login again.'
+            'Failed to fetch organizations or user info from GitHub. Please check your token or login again with /login command.'
         )
         return ConversationHandler.END
     keyboard = [

@@ -5,7 +5,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8080:8080"
+      - "9090:8080"
     volumes:
       - ./tokens.sqlite3:/app/tokens.sqlite3
     restart: unless-stopped

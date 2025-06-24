@@ -2,10 +2,10 @@ import asyncio
 import json
 import logging
 import os
-import sqlite3
 from urllib.parse import urlencode
 
 import aiohttp
+import asyncpg
 from aiohttp import web
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -25,7 +25,11 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-SQLITE_DB_PATH = 'tokens.sqlite3'
+POSTGRES_DB = os.getenv('POSTGRES_DB')
+POSTGRES_USER = os.getenv('POSTGRES_USER')
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+POSTGRES_HOST = os.getenv('POSTGRES_HOST')
+POSTGRES_PORT = os.getenv('POSTGRES_PORT')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 GITHUB_CLIENT_ID = os.getenv('GITHUB_CLIENT_ID')
 GITHUB_CLIENT_SECRET = os.getenv('GITHUB_CLIENT_SECRET')
@@ -34,40 +38,48 @@ GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET')
 OAUTH_CALLBACK_URL = f'https://{OAUTH_CALLBACK_DOMAIN}/callback'
 
 
-def init_db():
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        '''CREATE TABLE IF NOT EXISTS user_tokens (
-        telegram_id TEXT PRIMARY KEY,
-        access_token TEXT NOT NULL
-    )'''
+async def get_pg_pool():
+    return await asyncpg.create_pool(
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        database=POSTGRES_DB,
+        host=POSTGRES_HOST,
+        port=POSTGRES_PORT,
     )
-    conn.commit()
-    conn.close()
 
 
-def save_token(telegram_id, access_token):
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'REPLACE INTO user_tokens (telegram_id, access_token) VALUES (?, ?)',
-        (str(telegram_id), access_token),
-    )
-    conn.commit()
-    conn.close()
+async def init_db():
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            '''CREATE TABLE IF NOT EXISTS user_tokens (
+            telegram_id TEXT PRIMARY KEY,
+            access_token TEXT NOT NULL
+            )'''
+        )
+    await pool.close()
 
 
-def get_token(telegram_id):
-    conn = sqlite3.connect(SQLITE_DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        'SELECT access_token FROM user_tokens WHERE telegram_id = ?',
-        (str(telegram_id),),
-    )
-    row = c.fetchone()
-    conn.close()
-    return row[0] if row else None
+async def save_token(telegram_id, access_token):
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            'INSERT INTO user_tokens (telegram_id, access_token) VALUES ($1, $2) ON CONFLICT (telegram_id) DO UPDATE SET access_token = EXCLUDED.access_token',
+            str(telegram_id),
+            access_token,
+        )
+    await pool.close()
+
+
+async def get_token(telegram_id):
+    pool = await get_pg_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            'SELECT access_token FROM user_tokens WHERE telegram_id = $1',
+            str(telegram_id),
+        )
+    await pool.close()
+    return row['access_token'] if row else None
 
 
 SELECT_ACCOUNT, SELECT_PROJECT, GET_TITLE, GET_DESCRIPTION = range(4)
@@ -75,7 +87,7 @@ SELECT_ACCOUNT, SELECT_PROJECT, GET_TITLE, GET_DESCRIPTION = range(4)
 
 async def fetch_github_accounts(user_id=None):
     """Fetch the user's organizations and their own username."""
-    token = get_token(user_id) if user_id else None
+    token = await get_token(user_id) if user_id else None
     headers = {'Authorization': f'token {token}'} if token else {}
     accounts = []
     async with aiohttp.ClientSession() as session:
@@ -99,7 +111,7 @@ async def fetch_github_accounts(user_id=None):
 
 
 async def fetch_github_repos(user_id=None, account=None):
-    token = get_token(user_id) if user_id else None
+    token = await get_token(user_id) if user_id else None
     headers = {'Authorization': f'token {token}'} if token else {}
     if not account:
         return []
@@ -181,7 +193,7 @@ async def get_description(update: Update, context: CallbackContext):
     title = context.user_data['title']
     description = context.user_data['description']
     user_id = update.effective_user.id
-    token = get_token(user_id)
+    token = await get_token(user_id)
     account = context.user_data.get('selected_account')
     if not account:
         await update.message.reply_text(
@@ -243,14 +255,15 @@ async def oauth_callback(request):
             access_token = token_data.get('access_token')
             if not access_token:
                 return web.Response(text='Failed to get access token', status=400)
-            save_token(state, access_token)
+            await save_token(state, access_token)
             return web.Response(
                 text='GitHub login successful! You can return to Telegram.'
             )
 
 
 def main():
-    init_db()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(init_db())
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler('login', login))
 

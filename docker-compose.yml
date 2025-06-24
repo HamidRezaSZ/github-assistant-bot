@@ -6,6 +6,19 @@ services:
       - .env
     ports:
       - "9090:8080"
-    volumes:
-      - ./tokens.sqlite3:/app/tokens.sqlite3
+    depends_on:
+      - db
     restart: unless-stopped
+    volumes:
+      - ./pages:/app/pages
+  db:
+    image: postgres:16
+    container_name: github-bot-db
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:
